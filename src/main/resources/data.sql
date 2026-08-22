@@ -13,15 +13,17 @@ INSERT INTO produto (codigo, descricao) VALUES
 ('INVEST', 'Conta Investimento');
 
 -- PESSOA_MONITORADA (8)
-INSERT INTO pessoa_monitorada (cpf_cnpj, nome, tipo_pessoa, data_cadastro) VALUES
-('11122233344', 'Maria Souza', 'PF', '2023-01-15 09:00:00'),
-('22233344455', 'João Pereira', 'PF', '2023-03-20 09:00:00'),
-('33344455566', 'Ana Lima', 'PF', '2023-05-10 09:00:00'),
-('44455566677', 'Carlos Mendes', 'PF', '2023-08-02 09:00:00'),
-('12345678000190', 'Comercial Bras Ltda', 'PJ', '2022-11-01 09:00:00'),
-('23456789000181', 'Import Export SA', 'PJ', '2022-12-05 09:00:00'),
-('55566677788', 'Fernanda Costa', 'PF', '2024-02-18 09:00:00'),
-('66677788899', 'Roberto Alves', 'PF', '2024-04-22 09:00:00');
+-- pep/pem/funcionario ficam guardados so no cadastro (nao aparecem no texto das analises de proposito,
+-- a ideia e que uma tool via langchain4j consulte esses campos na hora de revisar o parecer)
+INSERT INTO pessoa_monitorada (cpf_cnpj, nome, tipo_pessoa, pep, pem, funcionario, data_cadastro) VALUES
+('11122233344', 'Maria Souza', 'PF', FALSE, FALSE, FALSE, '2023-01-15 09:00:00'),
+('22233344455', 'João Pereira', 'PF', FALSE, FALSE, TRUE, '2023-03-20 09:00:00'),
+('33344455566', 'Ana Lima', 'PF', TRUE, FALSE, FALSE, '2023-05-10 09:00:00'),
+('44455566677', 'Carlos Mendes', 'PF', FALSE, FALSE, FALSE, '2023-08-02 09:00:00'),
+('12345678000190', 'Comercial Bras Ltda', 'PJ', FALSE, FALSE, FALSE, '2022-11-01 09:00:00'),
+('23456789000181', 'Import Export SA', 'PJ', FALSE, FALSE, FALSE, '2022-12-05 09:00:00'),
+('55566677788', 'Fernanda Costa', 'PF', FALSE, TRUE, FALSE, '2024-02-18 09:00:00'),
+('66677788899', 'Roberto Alves', 'PF', FALSE, FALSE, FALSE, '2024-04-22 09:00:00');
 
 -- MOVIMENTOS (30)
 INSERT INTO movimentos (pessoa_monitorada_id, produto_id, valor, data_movimento, tipo_lancamento) VALUES
@@ -79,12 +81,17 @@ INSERT INTO alertas (pessoa_monitorada_id, regra_id, data_geracao, ocorrencia_id
 (4, 1, '2026-08-20 09:00:00', NULL);
 
 -- ANALISES (8)
+-- Pareceres propositalmente informais/crus (texto de analista "no bruto"), maiores e sem revisão,
+-- servindo de massa de teste para a IA que fara a melhoria/redacao final do texto.
+-- Cada parecer levanta a checagem de PEP/PEM/funcionario como algo crucial e ainda pendente,
+-- mas sem revelar o resultado -- esse dado mora so no cadastro (pessoa_monitorada) e sera
+-- consultado depois por uma tool langchain4j na hora da IA revisar/completar o texto.
 INSERT INTO analises (ocorrencia_id, analista, data_analise, parecer) VALUES
-(1, 'Patricia Nunes', '2026-06-08 09:00:00', 'Após verificação, cliente apresentou justificativa para os valores; solicitando documentação complementar.'),
-(1, 'Patricia Nunes', '2026-06-19 09:00:00', 'Documentação recebida e validada; recomendo arquivamento do caso.'),
-(2, 'Rafael Tavares', '2026-07-12 09:00:00', 'Em análise: aguardando extrato bancário do cliente para confirmar origem dos recursos.'),
-(2, 'Rafael Tavares', '2026-08-01 09:00:00', 'Extrato recebido; segue em análise de compatibilidade com o perfil declarado.'),
-(3, 'Patricia Nunes', '2026-08-04 09:00:00', 'Caso recém aberto, análise inicial em andamento.'),
-(4, 'Rafael Tavares', '2026-08-12 09:00:00', 'Cliente PJ com histórico de operações compatíveis; revisão do enquadramento PEP em curso.'),
-(5, 'Patricia Nunes', '2026-05-25 09:00:00', 'Movimentação esclarecida como pagamento de fornecedor; caso encerrado sem comunicação ao COAF.'),
-(6, 'Rafael Tavares', '2026-08-19 09:00:00', 'Transferência internacional em análise; solicitado comprovante de origem dos fundos.');
+(1, 'Patricia Nunes', '2026-06-08 09:00:00', 'entrei em contato com o cliente por telefone dia 07/06 e ele confirmou que os valores movimentados sao referentes a venda de um imovel, disse que tem contrato de compra e venda assinado e vai mandar por email ainda essa semana. pelo o que ele falou faz sentido com o perfil dele mas preciso ver o documento antes de fechar, tb vou confirmar se o comprador consta como PF mesmo. AINDA NAO CONFERI se o cliente se enquadra como PEP, PEM ou é funcionario da instituicao, isso é fundamental pra definir o nivel de atencao do caso e ta pendente. deixando o caso aberto aguardando doc, se nao vier ate dia 15 vou reforcar contato. obs: valor bate com o que ta no extrato, so falta comprovar origem'),
+(1, 'Patricia Nunes', '2026-06-19 09:00:00', 'cliente enviou o contrato de compra e venda do imovel junto com copia do RG do comprador, confere com a movimentacao apresentada no extrato e os valores tao dentro do esperado pra esse tipo de operacao. nao identifiquei nenhum indicio de irregularidade, o cliente ja tinha historico de operacoes parecidas em analises anteriores entao nao é a primeira vez. antes de arquivar de vez, o enquadramento de pep/pem/funcionario precisa estar confirmado no cadastro, isso é decisivo pra saber se basta o parecer usual ou se precisa de aprovacao reforcada, vou deixar essa checagem registrada como pendente de validacao final. recomendo arquivar o caso assumindo que a checagem nao aponte nada, nao ha necessidade de comunicacao ao coaf nesse momento. qualquer coisa reabre depois'),
+(2, 'Rafael Tavares', '2026-07-12 09:00:00', 'ainda nao consegui falar com o cliente, liguei duas vezes e caiu na caixa postal, mandei email tb pedindo o extrato bancario de origem dos recursos pra confirmar de onde veio o dinheiro que entrou na conta. pelo padrao de movimentacao (entrada seguida de debito quase igual em menos de 24h) da pra suspeitar de passagem de recurso so que ainda é cedo pra afirmar isso, precisa investigar mais. outro ponto que preciso confirmar e que pode mudar tudo é se esse cliente tem algum enquadramento de PEP, PEM ou vinculo como funcionario da instituicao, ainda nao chequei isso e é essencial pra decidir o rito da analise. vou tentar contato de novo semana que vem e se nao responder escalo pro compliance'),
+(2, 'Rafael Tavares', '2026-08-01 09:00:00', 'cliente retornou e mandou o extrato solicitado, os recursos vieram de uma conta de terceiro que segundo ele é socio em outro negocio, ainda nao ficou 100% claro a relacao entre eles e o motivo da transferencia ser justamente naquele valor redondo. vou pedir mais um documento comprovando o vinculo societario antes de decidir. tb falta validar o enquadramento de pep/pem/funcionario do cliente, isso é peca chave pra saber se o caso precisa de alcada maior. seguindo em analise, nao fechar ainda, falta pouco pra concluir acho eu'),
+(3, 'Patricia Nunes', '2026-08-04 09:00:00', 'caso acabou de abrir hj, ainda nao tive tempo de olhar com calma, so dei uma passada rapida nos movimentos e percebi que teve uma entrada de 45 mil seguida de debito de praticamente o msm valor no mesmo dia, isso geralmente é padrao suspeito de estruturacao ou passagem. vou puxar o historico completo do cliente amanha e tentar contato tb, e principalmente confirmar se ele se enquadra como pep, pem ou funcionario, pq isso muda completamente o nivel de criticidade que preciso dar pro caso. por enquanto fica so essa observacao inicial mesmo, nada conclusivo ainda'),
+(4, 'Rafael Tavares', '2026-08-12 09:00:00', 'cliente é pessoa juridica (comercial bras ltda) com bastante movimentacao recorrente de valores altos, o que ate certo ponto é esperado pelo porte da empresa. preciso levantar o quadro societario completo e verificar se algum dos socios ou representantes se enquadra como pep, pem ou é funcionario da instituicao, essa informacao é decisiva pra saber o nivel de diligencia que precisa ser aplicado aqui e ainda nao apurei isso direito. valor em si nao parece destoante do historico mas enquanto essa checagem nao sair fechada prefiro manter o caso em acompanhamento'),
+(5, 'Patricia Nunes', '2026-05-25 09:00:00', 'depois de analisar a nota fiscal e o comprovante que o cliente trouxe presencialmente na agencia, ficou claro que a movimentacao é referente a pagamento de fornecedor de mercadoria pro comercio dele, os valores e datas batem certinho com a nota. nao vejo motivo pra continuar o caso aberto, cliente ja tem relacionamento antigo e nunca teve ocorrencia antes dessa. fiz questao de confirmar no cadastro o enquadramento de pep, pem e funcionario antes de encerrar, ja que isso seria determinante pra exigir um parecer mais robusto, mas como o restante da documentacao ja justifica bem a operacao vou seguir com o encerramento. encerrando sem necessidade de comunicar ao coaf, ficou tudo bem justificado e documentado'),
+(6, 'Rafael Tavares', '2026-08-19 09:00:00', 'transferencia internacional pro exterior chamou atencao pq o pais de destino consta na lista de risco que o compliance mandou mes passado, entao mesmo o cliente sendo antigo e nao ter historico de problema preciso ser mais cuidadoso aqui. ja pedi pra ele mandar comprovante de origem dos fundos e a motivacao da transferencia (contrato, invoice, sei la) pra poder avaliar melhor, ele disse que ia mandar mas ainda nao chegou nada. tb preciso confirmar o enquadramento de pep, pem ou funcionario, isso influencia direto se vou precisar de aprovacao de uma alcada superior pra esse caso. vou dar um prazo de mais uns dias e se nao vier nada reporto pro compliance mesmo sem resposta dele');

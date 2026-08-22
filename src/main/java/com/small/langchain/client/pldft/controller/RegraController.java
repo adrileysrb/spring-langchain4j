@@ -34,4 +34,18 @@ public class RegraController {
     public ResponseEntity<Regra> create(@RequestBody Regra regra) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(regra));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Regra> update(@PathVariable Long id, @RequestBody Regra regra) {
+        return repository.update(id, regra)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

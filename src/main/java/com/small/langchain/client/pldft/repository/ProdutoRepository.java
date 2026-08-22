@@ -4,6 +4,8 @@ import com.small.langchain.client.pldft.model.Produto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public class ProdutoRepository extends BaseRepository<Produto> {
 
@@ -21,5 +23,13 @@ public class ProdutoRepository extends BaseRepository<Produto> {
                 produto.codigo(), produto.descricao()
         );
         return findById(id).orElseThrow();
+    }
+
+    public Optional<Produto> update(Long id, Produto produto) {
+        int rows = jdbcTemplate.update(
+                "UPDATE produto SET codigo = ?, descricao = ? WHERE id = ?",
+                produto.codigo(), produto.descricao(), id
+        );
+        return rows == 0 ? Optional.empty() : findById(id);
     }
 }

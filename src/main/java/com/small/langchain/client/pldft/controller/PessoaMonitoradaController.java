@@ -34,4 +34,18 @@ public class PessoaMonitoradaController {
     public ResponseEntity<PessoaMonitorada> create(@RequestBody PessoaMonitorada pessoa) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(pessoa));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PessoaMonitorada> update(@PathVariable Long id, @RequestBody PessoaMonitorada pessoa) {
+        return repository.update(id, pessoa)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

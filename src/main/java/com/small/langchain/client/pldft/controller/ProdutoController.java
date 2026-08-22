@@ -34,4 +34,18 @@ public class ProdutoController {
     public ResponseEntity<Produto> create(@RequestBody Produto produto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(produto));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Produto> update(@PathVariable Long id, @RequestBody Produto produto) {
+        return repository.update(id, produto)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

@@ -42,4 +42,8 @@ public abstract class BaseRepository<T> {
         }, keyHolder);
         return keyHolder.getKey().longValue();
     }
+
+    public boolean delete(Long id) {
+        return jdbcTemplate.update("DELETE FROM " + tableName + " WHERE id = ?", id) > 0;
+    }
 }

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public class AlertaRepository extends BaseRepository<Alerta> {
@@ -29,5 +30,13 @@ public class AlertaRepository extends BaseRepository<Alerta> {
                 alerta.ocorrenciaId()
         );
         return findById(id).orElseThrow();
+    }
+
+    public Optional<Alerta> update(Long id, Alerta alerta) {
+        int rows = jdbcTemplate.update(
+                "UPDATE alertas SET pessoa_monitorada_id = ?, regra_id = ?, ocorrencia_id = ? WHERE id = ?",
+                alerta.pessoaMonitoradaId(), alerta.regraId(), alerta.ocorrenciaId(), id
+        );
+        return rows == 0 ? Optional.empty() : findById(id);
     }
 }

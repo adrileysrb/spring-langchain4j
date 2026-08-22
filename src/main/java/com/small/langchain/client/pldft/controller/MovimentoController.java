@@ -34,4 +34,18 @@ public class MovimentoController {
     public ResponseEntity<Movimento> create(@RequestBody Movimento movimento) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(movimento));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Movimento> update(@PathVariable Long id, @RequestBody Movimento movimento) {
+        return repository.update(id, movimento)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

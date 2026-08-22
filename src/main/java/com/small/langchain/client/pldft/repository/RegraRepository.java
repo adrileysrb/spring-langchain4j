@@ -4,6 +4,8 @@ import com.small.langchain.client.pldft.model.Regra;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public class RegraRepository extends BaseRepository<Regra> {
 
@@ -22,5 +24,13 @@ public class RegraRepository extends BaseRepository<Regra> {
                 regra.codigo(), regra.descricao(), regra.ativo() != null ? regra.ativo() : true
         );
         return findById(id).orElseThrow();
+    }
+
+    public Optional<Regra> update(Long id, Regra regra) {
+        int rows = jdbcTemplate.update(
+                "UPDATE regras SET codigo = ?, descricao = ?, ativo = ? WHERE id = ?",
+                regra.codigo(), regra.descricao(), regra.ativo() != null ? regra.ativo() : true, id
+        );
+        return rows == 0 ? Optional.empty() : findById(id);
     }
 }

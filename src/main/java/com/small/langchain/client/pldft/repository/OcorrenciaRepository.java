@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public class OcorrenciaRepository extends BaseRepository<Ocorrencia> {
@@ -35,5 +36,16 @@ public class OcorrenciaRepository extends BaseRepository<Ocorrencia> {
                 dataEncerramento
         );
         return findById(id).orElseThrow();
+    }
+
+    public Optional<Ocorrencia> update(Long id, Ocorrencia ocorrencia) {
+        Timestamp dataEncerramento = ocorrencia.dataEncerramento() != null
+                ? Timestamp.valueOf(ocorrencia.dataEncerramento())
+                : null;
+        int rows = jdbcTemplate.update(
+                "UPDATE ocorrencias SET pessoa_monitorada_id = ?, status = ?, data_encerramento = ? WHERE id = ?",
+                ocorrencia.pessoaMonitoradaId(), ocorrencia.status(), dataEncerramento, id
+        );
+        return rows == 0 ? Optional.empty() : findById(id);
     }
 }

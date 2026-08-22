@@ -34,4 +34,18 @@ public class AlertaController {
     public ResponseEntity<Alerta> create(@RequestBody Alerta alerta) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(alerta));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Alerta> update(@PathVariable Long id, @RequestBody Alerta alerta) {
+        return repository.update(id, alerta)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

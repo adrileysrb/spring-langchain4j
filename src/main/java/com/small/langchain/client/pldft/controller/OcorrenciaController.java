@@ -34,4 +34,18 @@ public class OcorrenciaController {
     public ResponseEntity<Ocorrencia> create(@RequestBody Ocorrencia ocorrencia) {
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(ocorrencia));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Ocorrencia> update(@PathVariable Long id, @RequestBody Ocorrencia ocorrencia) {
+        return repository.update(id, ocorrencia)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        return repository.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
 }

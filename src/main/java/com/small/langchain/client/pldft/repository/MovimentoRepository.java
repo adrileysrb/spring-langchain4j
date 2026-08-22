@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
+import java.util.Optional;
 
 @Repository
 public class MovimentoRepository extends BaseRepository<Movimento> {
@@ -31,5 +32,14 @@ public class MovimentoRepository extends BaseRepository<Movimento> {
                 movimento.tipoLancamento()
         );
         return findById(id).orElseThrow();
+    }
+
+    public Optional<Movimento> update(Long id, Movimento movimento) {
+        int rows = jdbcTemplate.update(
+                "UPDATE movimentos SET pessoa_monitorada_id = ?, produto_id = ?, valor = ?, data_movimento = ?, tipo_lancamento = ? WHERE id = ?",
+                movimento.pessoaMonitoradaId(), movimento.produtoId(), movimento.valor(),
+                Timestamp.valueOf(movimento.dataMovimento()), movimento.tipoLancamento(), id
+        );
+        return rows == 0 ? Optional.empty() : findById(id);
     }
 }

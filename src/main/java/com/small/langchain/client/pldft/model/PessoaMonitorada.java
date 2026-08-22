@@ -7,6 +7,9 @@ public record PessoaMonitorada(
         String cpfCnpj,
         String nome,
         String tipoPessoa,
+        Boolean pep,
+        Boolean pem,
+        Boolean funcionario,
         LocalDateTime dataCadastro
 ) {
 }

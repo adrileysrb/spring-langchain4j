@@ -11,6 +11,9 @@ CREATE TABLE pessoa_monitorada (
     cpf_cnpj        VARCHAR(14) NOT NULL UNIQUE,
     nome            VARCHAR(200) NOT NULL,
     tipo_pessoa     VARCHAR(2) NOT NULL CHECK (tipo_pessoa IN ('PF', 'PJ')),
+    pep             BOOLEAN NOT NULL DEFAULT FALSE,
+    pem             BOOLEAN NOT NULL DEFAULT FALSE,
+    funcionario     BOOLEAN NOT NULL DEFAULT FALSE,
     data_cadastro   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
