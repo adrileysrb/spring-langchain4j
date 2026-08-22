@@ -15,6 +15,7 @@ public class OcorrenciaRepository extends BaseRepository<Ocorrencia> {
         super(jdbcTemplate, "ocorrencias", (rs, rowNum) -> new Ocorrencia(
                 rs.getLong("id"),
                 rs.getLong("pessoa_monitorada_id"),
+                (Long) rs.getObject("produto_id"),
                 rs.getString("status"),
                 rs.getTimestamp("data_abertura").toLocalDateTime(),
                 rs.getTimestamp("data_encerramento") != null
@@ -28,9 +29,10 @@ public class OcorrenciaRepository extends BaseRepository<Ocorrencia> {
                 ? Timestamp.valueOf(ocorrencia.dataEncerramento())
                 : null;
         Long id = insert(
-                "INSERT INTO ocorrencias (pessoa_monitorada_id, status, data_abertura, data_encerramento) " +
-                        "VALUES (?, ?, ?, ?)",
+                "INSERT INTO ocorrencias (pessoa_monitorada_id, produto_id, status, data_abertura, data_encerramento) " +
+                        "VALUES (?, ?, ?, ?, ?)",
                 ocorrencia.pessoaMonitoradaId(),
+                ocorrencia.produtoId(),
                 ocorrencia.status(),
                 Timestamp.valueOf(LocalDateTime.now()),
                 dataEncerramento
@@ -43,8 +45,8 @@ public class OcorrenciaRepository extends BaseRepository<Ocorrencia> {
                 ? Timestamp.valueOf(ocorrencia.dataEncerramento())
                 : null;
         int rows = jdbcTemplate.update(
-                "UPDATE ocorrencias SET pessoa_monitorada_id = ?, status = ?, data_encerramento = ? WHERE id = ?",
-                ocorrencia.pessoaMonitoradaId(), ocorrencia.status(), dataEncerramento, id
+                "UPDATE ocorrencias SET pessoa_monitorada_id = ?, produto_id = ?, status = ?, data_encerramento = ? WHERE id = ?",
+                ocorrencia.pessoaMonitoradaId(), ocorrencia.produtoId(), ocorrencia.status(), dataEncerramento, id
         );
         return rows == 0 ? Optional.empty() : findById(id);
     }

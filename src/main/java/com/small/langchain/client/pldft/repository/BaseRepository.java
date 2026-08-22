@@ -13,7 +13,7 @@ public abstract class BaseRepository<T> {
 
     protected final JdbcTemplate jdbcTemplate;
     private final String tableName;
-    private final RowMapper<T> rowMapper;
+    protected final RowMapper<T> rowMapper;
 
     protected BaseRepository(JdbcTemplate jdbcTemplate, String tableName, RowMapper<T> rowMapper) {
         this.jdbcTemplate = jdbcTemplate;

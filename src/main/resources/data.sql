@@ -59,13 +59,13 @@ INSERT INTO movimentos (pessoa_monitorada_id, produto_id, valor, data_movimento,
 (8, 3, 25000.00, '2026-08-17 10:00:00', 'CREDITO');
 
 -- OCORRENCIAS (6)
-INSERT INTO ocorrencias (pessoa_monitorada_id, status, data_abertura, data_encerramento) VALUES
-(1, 'ENCERRADA', '2026-06-05 09:00:00', '2026-06-20 09:00:00'),
-(2, 'EM_ANALISE', '2026-07-10 09:00:00', NULL),
-(3, 'ABERTA', '2026-08-02 09:00:00', NULL),
-(5, 'EM_ANALISE', '2026-08-10 09:00:00', NULL),
-(7, 'ENCERRADA', '2026-05-15 09:00:00', '2026-05-30 09:00:00'),
-(8, 'ABERTA', '2026-08-18 09:00:00', NULL);
+INSERT INTO ocorrencias (pessoa_monitorada_id, produto_id, status, data_abertura, data_encerramento) VALUES
+(1, 1, 'ENCERRADA', '2026-06-05 09:00:00', '2026-06-20 09:00:00'),
+(2, 3, 'EM_ANALISE', '2026-07-10 09:00:00', NULL),
+(3, 1, 'ABERTA', '2026-08-02 09:00:00', NULL),
+(5, 3, 'EM_ANALISE', '2026-08-10 09:00:00', NULL),
+(7, 2, 'ENCERRADA', '2026-05-15 09:00:00', '2026-05-30 09:00:00'),
+(8, 1, 'ABERTA', '2026-08-18 09:00:00', NULL);
 
 -- ALERTAS (10) - dois alertas de pessoa 1 no mesmo mes ficam na mesma ocorrencia (N:1)
 INSERT INTO alertas (pessoa_monitorada_id, regra_id, data_geracao, ocorrencia_id) VALUES
@@ -95,3 +95,21 @@ INSERT INTO analises (ocorrencia_id, analista, data_analise, parecer) VALUES
 (4, 'Rafael Tavares', '2026-08-12 09:00:00', 'cliente é pessoa juridica (comercial bras ltda) com bastante movimentacao recorrente de valores altos, o que ate certo ponto é esperado pelo porte da empresa. preciso levantar o quadro societario completo e verificar se algum dos socios ou representantes se enquadra como pep, pem ou é funcionario da instituicao, essa informacao é decisiva pra saber o nivel de diligencia que precisa ser aplicado aqui e ainda nao apurei isso direito. valor em si nao parece destoante do historico mas enquanto essa checagem nao sair fechada prefiro manter o caso em acompanhamento'),
 (5, 'Patricia Nunes', '2026-05-25 09:00:00', 'depois de analisar a nota fiscal e o comprovante que o cliente trouxe presencialmente na agencia, ficou claro que a movimentacao é referente a pagamento de fornecedor de mercadoria pro comercio dele, os valores e datas batem certinho com a nota. nao vejo motivo pra continuar o caso aberto, cliente ja tem relacionamento antigo e nunca teve ocorrencia antes dessa. fiz questao de confirmar no cadastro o enquadramento de pep, pem e funcionario antes de encerrar, ja que isso seria determinante pra exigir um parecer mais robusto, mas como o restante da documentacao ja justifica bem a operacao vou seguir com o encerramento. encerrando sem necessidade de comunicar ao coaf, ficou tudo bem justificado e documentado'),
 (6, 'Rafael Tavares', '2026-08-19 09:00:00', 'transferencia internacional pro exterior chamou atencao pq o pais de destino consta na lista de risco que o compliance mandou mes passado, entao mesmo o cliente sendo antigo e nao ter historico de problema preciso ser mais cuidadoso aqui. ja pedi pra ele mandar comprovante de origem dos fundos e a motivacao da transferencia (contrato, invoice, sei la) pra poder avaliar melhor, ele disse que ia mandar mas ainda nao chegou nada. tb preciso confirmar o enquadramento de pep, pem ou funcionario, isso influencia direto se vou precisar de aprovacao de uma alcada superior pra esse caso. vou dar um prazo de mais uns dias e se nao vier nada reporto pro compliance mesmo sem resposta dele');
+
+-- PROMPT_TEMPLATES (1 versao ativa por produto)
+-- As configuracoes (modelo/temperature/max_tokens) sao aplicadas de verdade na chamada,
+-- por isso variam por produto: investimento usa um modelo maior e mais conservador,
+-- poupanca (produto de risco menor) usa um modelo mais leve.
+INSERT INTO prompt_templates (produto_id, versao, nome, prompt_sistema, prompt_usuario, modelo, temperature, max_tokens, ativo) VALUES
+(1, 1, 'Revisao padrao - Conta Corrente',
+ 'Voce e um assistente de compliance que revisa pareceres de analistas de PLDFT (prevencao a lavagem de dinheiro e financiamento ao terrorismo). Reescreva o texto do analista de forma clara, formal e objetiva, mantendo todos os fatos, decisoes e pendencias mencionadas. Nao invente informacoes que nao estejam no texto original. Responda so com o texto revisado, em portugues, sem markdown.',
+ 'Produto do caso: {{produto}}\nAnalista responsavel: {{analista}}\nOcorrencia: #{{ocorrenciaId}}\n\nTexto original do parecer (rascunho do analista):\n{{parecer}}\n\nReescreva esse parecer de forma profissional e bem estruturada, adequada a um relatorio de compliance de conta corrente, preservando integralmente os fatos, decisoes e pendencias descritas pelo analista.',
+ 'google/gemma-4-e2b', 0.30, 2000, TRUE),
+(2, 1, 'Revisao padrao - Poupanca',
+ 'Voce e um assistente de compliance que revisa pareceres de analistas de PLDFT (prevencao a lavagem de dinheiro e financiamento ao terrorismo). Reescreva o texto do analista de forma clara, formal e objetiva, mantendo todos os fatos, decisoes e pendencias mencionadas. Nao invente informacoes que nao estejam no texto original. Responda so com o texto revisado, em portugues, sem markdown.',
+ 'Produto do caso: {{produto}}\nAnalista responsavel: {{analista}}\nOcorrencia: #{{ocorrenciaId}}\n\nTexto original do parecer (rascunho do analista):\n{{parecer}}\n\nReescreva esse parecer de forma profissional e objetiva, adequada a um relatorio de compliance de conta poupanca, preservando integralmente os fatos, decisoes e pendencias descritas pelo analista.',
+ 'google/gemma-3-1b', 0.30, 1800, TRUE),
+(3, 1, 'Revisao padrao - Investimentos',
+ 'Voce e um assistente de compliance que revisa pareceres de analistas de PLDFT (prevencao a lavagem de dinheiro e financiamento ao terrorismo), especializado em produtos de investimento, que exigem maior rigor regulatorio. Reescreva o texto do analista de forma clara, formal e criteriosa, mantendo todos os fatos, decisoes e pendencias mencionadas. Nao invente informacoes que nao estejam no texto original. Responda so com o texto revisado, em portugues, sem markdown.',
+ 'Produto do caso: {{produto}}\nAnalista responsavel: {{analista}}\nOcorrencia: #{{ocorrenciaId}}\n\nTexto original do parecer (rascunho do analista):\n{{parecer}}\n\nReescreva esse parecer de forma profissional, criteriosa e bem estruturada, adequada a um relatorio de compliance de produto de investimento, preservando integralmente os fatos, decisoes e pendencias descritas pelo analista.',
+ 'google/gemma-3-4b', 0.20, 3000, TRUE);

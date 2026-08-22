@@ -3,19 +3,44 @@ package com.small.langchain.client;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 @Component
 public class LlmClient {
+
+    private static final String BASE_URL = "http://127.0.0.1:1234/v1";
+    private static final String API_KEY = "lm-studio";
+    private static final String DEFAULT_MODEL_NAME = "google/gemma-4-e2b";
+
+    // Modelos locais "raciocinam" antes de responder e podem consumir boa parte
+    // do max_tokens so com isso, o que deixa a geracao bem mais lenta que uma
+    // API hospedada -- por isso o timeout generoso e poucos retries.
+    private static final Duration TIMEOUT = Duration.ofMinutes(5);
 
     private OpenAiChatModel openAiChatModel = null;
 
     public OpenAiChatModel getInstance() {
-        if(openAiChatModel != null) return openAiChatModel;
+        if (openAiChatModel != null) return openAiChatModel;
 
-        openAiChatModel =  OpenAiChatModel.builder()
-                .baseUrl("http://127.0.0.1:1234/v1")
-                .apiKey("lm-studio")
-                .modelName("google/gemma-4-e2b")
+        openAiChatModel = OpenAiChatModel.builder()
+                .baseUrl(BASE_URL)
+                .apiKey(API_KEY)
+                .modelName(DEFAULT_MODEL_NAME)
+                .timeout(TIMEOUT)
+                .maxRetries(1)
                 .build();
         return openAiChatModel;
+    }
+
+    public OpenAiChatModel build(String modelName, Double temperature, Integer maxTokens) {
+        return OpenAiChatModel.builder()
+                .baseUrl(BASE_URL)
+                .apiKey(API_KEY)
+                .modelName(modelName)
+                .temperature(temperature)
+                .maxTokens(maxTokens)
+                .timeout(TIMEOUT)
+                .maxRetries(1)
+                .build();
     }
 }
