@@ -4,9 +4,9 @@ import dev.langchain4j.agent.tool.Tool;
 
 public class SmallLord {
 
-    @Tool("ttes")
+    @Tool("Qual é o nome do lipe que tá no server borderlands?")
     public String getLordName() {
-        return "KI123123";
+        return "LipezeraHerobrine 987";
     }
 
 }

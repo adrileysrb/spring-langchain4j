@@ -1,7 +1,5 @@
 package com.small.langchain.client;
 
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agent.tool.ToolSpecifications;
@@ -11,7 +9,6 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.service.AiServices;
-import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,14 +24,8 @@ public class LlmController {
     @Autowired
     private LlmClient llmClient;
 
-    @Autowired
-    private MongoDBClient mongoDBClient;
-
     @GetMapping("/small")
     public String foo() {
-        MongoDatabase mongoDatabase = mongoDBClient.getInstance().getDatabase("sample_mflix");
-        MongoCollection<Document> collection = mongoDatabase.getCollection("users");
-
         List<ToolSpecification> toolSpecificationList = ToolSpecifications.toolSpecificationsFrom(SmallLord.class);
         UserMessage userMessage = UserMessage.from("Quem é o lord anapolis discord borderlands?");
         ChatRequest request = ChatRequest.builder()
@@ -57,7 +48,7 @@ public class LlmController {
             response = llmClient.getInstance().chat(followUpRequest);
         }
 
-        return response.aiMessage().text() + "\n" + collection.find().first();
+        return response.aiMessage().text();
     }
 
     @GetMapping("/small-ai")
@@ -67,16 +58,6 @@ public class LlmController {
                 .tools(new SmallLord())
                 .build();
 
-        return lordAssistant.chat("Quem é?");
-    }
-
-    @GetMapping("/adriley")
-    public String fooAdriley() {
-        LordAssistant lordAssistant = AiServices.builder(LordAssistant.class)
-                .chatModel(llmClient.getInstance())
-                .tools(new InsertTool(mongoDBClient))
-                .build();
-
-        return lordAssistant.chat("Qual a capital do brasil?");
+        return lordAssistant.chat("Quem é lipe do borderlands?");
     }
 }
