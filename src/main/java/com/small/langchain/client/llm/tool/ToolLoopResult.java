@@ -33,4 +33,12 @@ public record ToolLoopResult(
                 .map(ToolExecutionResultMessage::text)
                 .collect(Collectors.joining(separador));
     }
+
+    /** Nomes das ferramentas efetivamente consultadas, sem repeticao e na ordem de uso. */
+    public List<String> ferramentasUsadas() {
+        return resultadosDeTools.stream()
+                .map(ToolExecutionResultMessage::toolName)
+                .distinct()
+                .toList();
+    }
 }
