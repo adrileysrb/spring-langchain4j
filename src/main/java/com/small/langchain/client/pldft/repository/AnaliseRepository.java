@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -19,6 +20,12 @@ public class AnaliseRepository extends BaseRepository<Analise> {
                 rs.getTimestamp("data_analise").toLocalDateTime(),
                 rs.getString("parecer")
         ));
+    }
+
+    public List<Analise> findByOcorrenciaId(Long ocorrenciaId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM analises WHERE ocorrencia_id = ? ORDER BY data_analise DESC",
+                rowMapper, ocorrenciaId);
     }
 
     public Analise save(Analise analise) {
