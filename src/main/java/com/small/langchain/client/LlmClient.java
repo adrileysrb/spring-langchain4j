@@ -39,6 +39,10 @@ public class LlmClient {
                 .modelName(modelName)
                 .temperature(temperature)
                 .maxTokens(maxTokens)
+                // modelos locais pequenos tendem a entrar em loop repetindo o mesmo trecho
+                // ate estourar o max_tokens; penalizar repeticao reduz bastante isso.
+                .frequencyPenalty(0.6)
+                .presencePenalty(0.4)
                 .timeout(TIMEOUT)
                 .maxRetries(1)
                 .build();

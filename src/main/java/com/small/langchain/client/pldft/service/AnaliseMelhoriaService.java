@@ -8,18 +8,30 @@ import com.small.langchain.client.pldft.model.Produto;
 import com.small.langchain.client.pldft.repository.AnaliseMelhoriaRepository;
 import com.small.langchain.client.pldft.repository.AnaliseRepository;
 import com.small.langchain.client.pldft.repository.OcorrenciaRepository;
+import com.small.langchain.client.pldft.repository.PessoaMonitoradaRepository;
 import com.small.langchain.client.pldft.repository.ProdutoRepository;
 import com.small.langchain.client.pldft.repository.PromptTemplateRepository;
+import com.small.langchain.client.pldft.tool.PessoaEnquadramentoTools;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.agent.tool.ToolSpecifications;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ToolChoice;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.service.tool.DefaultToolExecutor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,13 +39,23 @@ import java.util.Set;
 @Service
 public class AnaliseMelhoriaService {
 
+    private static final Logger log = LoggerFactory.getLogger(AnaliseMelhoriaService.class);
+
     private static final Set<String> STATUS_PERMITIDOS = Set.of("ACEITO", "DESCARTADO");
+    // Modelos locais pequenos as vezes "fingem" ter chamado a tool escrevendo texto solto em vez
+    // de emitir um tool_call de verdade, principalmente quando o prompt e longo (ex.: pedindo pra
+    // reescrever o parecer inteiro AO MESMO TEMPO que decide usar a tool). Por isso a consulta de
+    // enquadramento roda numa chamada curta e isolada, so com essa unica tarefa -- e so depois o
+    // resultado (real, vindo do cadastro) e passado como texto pronto pra chamada de redacao,
+    // que ai nao precisa lidar com tool-calling nenhum.
+    private static final int MAX_TENTATIVAS_SEM_TOOL_REAL = 2;
 
     private final AnaliseRepository analiseRepository;
     private final OcorrenciaRepository ocorrenciaRepository;
     private final ProdutoRepository produtoRepository;
     private final PromptTemplateRepository promptTemplateRepository;
     private final AnaliseMelhoriaRepository melhoriaRepository;
+    private final PessoaMonitoradaRepository pessoaMonitoradaRepository;
     private final LlmClient llmClient;
 
     public AnaliseMelhoriaService(
@@ -42,6 +64,7 @@ public class AnaliseMelhoriaService {
             ProdutoRepository produtoRepository,
             PromptTemplateRepository promptTemplateRepository,
             AnaliseMelhoriaRepository melhoriaRepository,
+            PessoaMonitoradaRepository pessoaMonitoradaRepository,
             LlmClient llmClient
     ) {
         this.analiseRepository = analiseRepository;
@@ -49,6 +72,7 @@ public class AnaliseMelhoriaService {
         this.produtoRepository = produtoRepository;
         this.promptTemplateRepository = promptTemplateRepository;
         this.melhoriaRepository = melhoriaRepository;
+        this.pessoaMonitoradaRepository = pessoaMonitoradaRepository;
         this.llmClient = llmClient;
     }
 
@@ -71,16 +95,22 @@ public class AnaliseMelhoriaService {
         Produto produto = produtoRepository.findById(ocorrencia.produtoId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produto não encontrado"));
 
-        Map<String, Object> variaveis = Map.of(
-                "parecer", analise.parecer(),
-                "analista", analise.analista(),
-                "ocorrenciaId", ocorrencia.id(),
-                "produto", produto.descricao()
-        );
-
         LocalDateTime inicio = LocalDateTime.now();
         try {
             OpenAiChatModel chatModel = llmClient.build(template.modelo(), template.temperature(), template.maxTokens());
+            PessoaEnquadramentoTools tools = new PessoaEnquadramentoTools(ocorrenciaRepository, pessoaMonitoradaRepository);
+            List<ToolSpecification> toolSpecifications = ToolSpecifications.toolSpecificationsFrom(tools);
+
+            String enquadramento = consultarEnquadramentoViaTool(chatModel, tools, toolSpecifications, ocorrencia, analiseId);
+
+            Map<String, Object> variaveis = new HashMap<>();
+            variaveis.put("parecer", analise.parecer());
+            variaveis.put("analista", analise.analista());
+            variaveis.put("ocorrenciaId", ocorrencia.id());
+            variaveis.put("produto", produto.descricao());
+            variaveis.put("enquadramento", enquadramento != null
+                    ? enquadramento
+                    : "não foi possível consultar o cadastro no momento");
 
             List<ChatMessage> mensagens = new ArrayList<>();
             if (template.promptSistema() != null && !template.promptSistema().isBlank()) {
@@ -114,6 +144,52 @@ public class AnaliseMelhoriaService {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Falha ao consultar o modelo de IA: " + mensagemErro, e);
         }
+    }
+
+    /**
+     * Chamada curta e isolada, so com a tarefa de consultar o enquadramento via tool -- separada
+     * da chamada de redacao (que e bem mais longa) porque modelos locais pequenos costumam falhar
+     * em emitir um tool_call de verdade quando tem que decidir isso ao mesmo tempo que escreve um
+     * texto longo. Retorna null se, mesmo com toolChoice=REQUIRED e as tentativas, o modelo nunca
+     * chamar a tool de verdade -- nesse caso a chamada de redacao segue sem a informacao.
+     */
+    private String consultarEnquadramentoViaTool(
+            OpenAiChatModel chatModel,
+            PessoaEnquadramentoTools tools,
+            List<ToolSpecification> toolSpecifications,
+            Ocorrencia ocorrencia,
+            Long analiseId
+    ) {
+        for (int tentativa = 1; tentativa <= MAX_TENTATIVAS_SEM_TOOL_REAL; tentativa++) {
+            List<ChatMessage> mensagens = List.of(
+                    SystemMessage.from("Voce verifica o enquadramento (PEP, PEM e/ou funcionario da instituicao) "
+                            + "da pessoa monitorada de uma ocorrencia de PLDFT. Use a ferramenta disponivel "
+                            + "informando o id da ocorrencia para consultar o cadastro. Nao escreva nenhum "
+                            + "texto de resposta, apenas use a ferramenta."),
+                    UserMessage.from("Consulte o enquadramento da pessoa monitorada da ocorrencia #" + ocorrencia.id() + ".")
+            );
+
+            ChatRequest chatRequest = ChatRequest.builder()
+                    .messages(mensagens)
+                    .toolSpecifications(toolSpecifications)
+                    .toolChoice(ToolChoice.REQUIRED)
+                    .build();
+            ChatResponse response = chatModel.chat(chatRequest);
+
+            if (response.aiMessage().hasToolExecutionRequests()) {
+                ToolExecutionRequest toolExecutionRequest = response.aiMessage().toolExecutionRequests().get(0);
+                log.info("Analise {}: chamando tool '{}' com args {}", analiseId,
+                        toolExecutionRequest.name(), toolExecutionRequest.arguments());
+                String resultado = new DefaultToolExecutor(tools, toolExecutionRequest).execute(toolExecutionRequest, null);
+                log.info("Analise {}: resultado da tool '{}': {}", analiseId, toolExecutionRequest.name(), resultado);
+                return resultado;
+            }
+
+            log.warn("Analise {}: tentativa {} de consultar enquadramento nao chamou a tool de verdade"
+                    + (tentativa < MAX_TENTATIVAS_SEM_TOOL_REAL ? ", tentando de novo" : ", seguindo sem a informacao"),
+                    analiseId, tentativa);
+        }
+        return null;
     }
 
     public List<AnaliseMelhoria> listar(Long analiseId) {
