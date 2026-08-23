@@ -1,14 +1,12 @@
 package com.small.langchain.client.pldft.service;
 
-import com.small.langchain.client.llm.ToolCallingChatService;
-import com.small.langchain.client.llm.ToolRegistry;
 import com.small.langchain.client.llm.model.ChatModelFactory;
 import com.small.langchain.client.llm.model.ModelSpec;
 import com.small.langchain.client.llm.observability.LlmTaskContext;
 import com.small.langchain.client.llm.observability.TarefaIa;
-import com.small.langchain.client.llm.tool.FuncionarioConsultaTool;
-import com.small.langchain.client.llm.tool.PemConsultaTool;
-import com.small.langchain.client.llm.tool.PepConsultaTool;
+import com.small.langchain.client.llm.tool.ToolLoopPolicy;
+import com.small.langchain.client.llm.tool.ToolLoopResult;
+import com.small.langchain.client.llm.tool.ToolLoopRunner;
 import com.small.langchain.client.pldft.model.Analise;
 import com.small.langchain.client.pldft.model.AnaliseMelhoria;
 import com.small.langchain.client.pldft.model.Ocorrencia;
@@ -18,9 +16,9 @@ import com.small.langchain.client.pldft.repository.AnaliseRepository;
 import com.small.langchain.client.pldft.repository.OcorrenciaRepository;
 import com.small.langchain.client.pldft.repository.ProdutoRepository;
 import com.small.langchain.client.pldft.repository.PromptTemplateRepository;
+import com.small.langchain.client.pldft.tool.OcorrenciaTools;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -37,7 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class AnaliseMelhoriaService {
@@ -59,8 +56,8 @@ public class AnaliseMelhoriaService {
     private final PromptTemplateRepository promptTemplateRepository;
     private final AnaliseMelhoriaRepository melhoriaRepository;
     private final ChatModelFactory chatModelFactory;
-    private final ToolCallingChatService toolCallingChatService;
-    private final ToolRegistry enquadramentoTools;
+    private final ToolLoopRunner toolLoopRunner;
+    private final OcorrenciaTools ocorrenciaTools;
 
     public AnaliseMelhoriaService(
             AnaliseRepository analiseRepository,
@@ -69,10 +66,8 @@ public class AnaliseMelhoriaService {
             PromptTemplateRepository promptTemplateRepository,
             AnaliseMelhoriaRepository melhoriaRepository,
             ChatModelFactory chatModelFactory,
-            ToolCallingChatService toolCallingChatService,
-            PepConsultaTool pepConsultaTool,
-            PemConsultaTool pemConsultaTool,
-            FuncionarioConsultaTool funcionarioConsultaTool
+            ToolLoopRunner toolLoopRunner,
+            OcorrenciaTools ocorrenciaTools
     ) {
         this.analiseRepository = analiseRepository;
         this.ocorrenciaRepository = ocorrenciaRepository;
@@ -80,8 +75,8 @@ public class AnaliseMelhoriaService {
         this.promptTemplateRepository = promptTemplateRepository;
         this.melhoriaRepository = melhoriaRepository;
         this.chatModelFactory = chatModelFactory;
-        this.toolCallingChatService = toolCallingChatService;
-        this.enquadramentoTools = ToolRegistry.of(pepConsultaTool, pemConsultaTool, funcionarioConsultaTool);
+        this.toolLoopRunner = toolLoopRunner;
+        this.ocorrenciaTools = ocorrenciaTools;
     }
 
     public AnaliseMelhoria gerar(Long analiseId) {
@@ -172,16 +167,20 @@ public class AnaliseMelhoriaService {
                         + "da ocorrencia #" + ocorrencia.id() + ".")
         );
 
-        List<ToolExecutionResultMessage> resultados = LlmTaskContext.executando(
+        ToolLoopResult resultado = LlmTaskContext.executando(
                 TarefaIa.CONSULTA_ENQUADRAMENTO,
-                () -> toolCallingChatService.executarAteTodasAsTools(
-                        chatModel, mensagens, enquadramentoTools, MAX_RODADAS_ENQUADRAMENTO));
+                () -> toolLoopRunner.executar(
+                        chatModel,
+                        mensagens,
+                        ocorrenciaTools.enquadramento(),
+                        ToolLoopPolicy.ateChamarTodasAsTools(),
+                        MAX_RODADAS_ENQUADRAMENTO));
 
-        if (resultados.isEmpty()) {
+        if (!resultado.algumaToolExecutada()) {
             log.warn("Analise {}: nenhuma tool de enquadramento foi chamada de verdade, seguindo sem a informacao", analiseId);
             return null;
         }
-        return resultados.stream().map(ToolExecutionResultMessage::text).collect(Collectors.joining(" | "));
+        return resultado.resultadosConcatenados(" | ");
     }
 
     public List<AnaliseMelhoria> listar(Long analiseId) {

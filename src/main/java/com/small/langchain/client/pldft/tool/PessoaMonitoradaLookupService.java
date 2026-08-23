@@ -1,4 +1,4 @@
-package com.small.langchain.client.llm.tool;
+package com.small.langchain.client.pldft.tool;
 
 import com.small.langchain.client.pldft.model.PessoaMonitorada;
 import com.small.langchain.client.pldft.repository.OcorrenciaRepository;

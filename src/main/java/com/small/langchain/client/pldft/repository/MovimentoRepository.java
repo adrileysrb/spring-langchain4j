@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -19,6 +20,12 @@ public class MovimentoRepository extends BaseRepository<Movimento> {
                 rs.getTimestamp("data_movimento").toLocalDateTime(),
                 rs.getString("tipo_lancamento")
         ));
+    }
+
+    public List<Movimento> findByPessoaMonitoradaId(Long pessoaMonitoradaId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM movimentos WHERE pessoa_monitorada_id = ? ORDER BY data_movimento",
+                rowMapper, pessoaMonitoradaId);
     }
 
     public Movimento save(Movimento movimento) {

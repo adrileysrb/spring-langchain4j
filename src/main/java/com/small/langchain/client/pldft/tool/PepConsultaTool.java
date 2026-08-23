@@ -1,4 +1,4 @@
-package com.small.langchain.client.llm.tool;
+package com.small.langchain.client.pldft.tool;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;

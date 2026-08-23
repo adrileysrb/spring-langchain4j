@@ -1,4 +1,4 @@
-package com.small.langchain.client.llm;
+package com.small.langchain.client.llm.tool;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -11,10 +11,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agrupa um conjunto de objetos anotados com {@code @Tool} (API de baixo nivel do
- * langchain4j), expondo as {@link ToolSpecification} correspondentes para o
- * {@link dev.langchain4j.model.chat.request.ChatRequest} e sabendo executar de volta
- * a tool certa a partir de um {@link ToolExecutionRequest} vindo da resposta do modelo.
+ * Registry das tools disponiveis numa conversa. Guarda os dois lados que a API de baixo nivel
+ * do langchain4j mantem separados: a {@link ToolSpecification} que vai no {@code ChatRequest}
+ * (o que o modelo enxerga) e o objeto Java que sabe executar aquela tool quando o modelo pede.
+ *
+ * <p>Montar um registry por caso de uso, e nao um global, e o que permite expor um conjunto
+ * diferente de ferramentas em cada fluxo.
  */
 public final class ToolRegistry {
 
@@ -39,6 +41,14 @@ public final class ToolRegistry {
         return specifications;
     }
 
+    public int size() {
+        return specifications.size();
+    }
+
+    /**
+     * Executa a tool pedida pelo modelo. O {@link DefaultToolExecutor} cuida de desserializar
+     * os argumentos JSON e casar com os parametros do metodo anotado com {@code @Tool}.
+     */
     public String execute(ToolExecutionRequest request) {
         Object toolInstance = toolInstanceByName.get(request.name());
         if (toolInstance == null) {
