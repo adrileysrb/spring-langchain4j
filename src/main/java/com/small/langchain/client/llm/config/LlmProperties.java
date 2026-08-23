@@ -49,7 +49,21 @@ public record LlmProperties(
          * Quando um prompt pede um modelo que nao esta carregado no provedor, a chamada
          * cai automaticamente no modelo padrao em vez de estourar erro.
          */
-        @DefaultValue("true") boolean fallbackToDefaultModel
+        @DefaultValue("true") boolean fallbackToDefaultModel,
+
+        /**
+         * Tamanho do trecho na indexacao do RAG. Trecho grande demais dilui o assunto e piora a
+         * similaridade; pequeno demais corta a frase antes da conclusao.
+         */
+        @DefaultValue("700") Integer ragChunkSize,
+
+        /** Sobreposicao entre trechos vizinhos, pra ideia cortada na borda nao se perder. */
+        @DefaultValue("120") Integer ragChunkOverlap,
+
+        @DefaultValue("4") Integer ragMaxResults,
+
+        /** Abaixo disso o trecho e ruido; devolver nada e melhor que devolver o irrelevante. */
+        @DefaultValue("0.55") Double ragMinScore
 ) {
 
     public ModelSpec defaultSpec() {
