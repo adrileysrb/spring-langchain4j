@@ -1,8 +1,11 @@
 package com.small.langchain.client.pldft.service;
 
-import com.small.langchain.client.llm.ChatModelFactory;
 import com.small.langchain.client.llm.ToolCallingChatService;
 import com.small.langchain.client.llm.ToolRegistry;
+import com.small.langchain.client.llm.model.ChatModelFactory;
+import com.small.langchain.client.llm.model.ModelSpec;
+import com.small.langchain.client.llm.observability.LlmTaskContext;
+import com.small.langchain.client.llm.observability.TarefaIa;
 import com.small.langchain.client.llm.tool.FuncionarioConsultaTool;
 import com.small.langchain.client.llm.tool.PemConsultaTool;
 import com.small.langchain.client.llm.tool.PepConsultaTool;
@@ -19,9 +22,9 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -102,7 +105,8 @@ public class AnaliseMelhoriaService {
 
         LocalDateTime inicio = LocalDateTime.now();
         try {
-            OpenAiChatModel chatModel = chatModelFactory.build(template.modelo(), template.temperature(), template.maxTokens());
+            ChatModel chatModel = chatModelFactory.forSpec(
+                    new ModelSpec(template.modelo(), template.temperature(), template.maxTokens()));
 
             String enquadramento = consultarEnquadramentoViaTools(chatModel, ocorrencia, analiseId);
 
@@ -124,7 +128,8 @@ public class AnaliseMelhoriaService {
                     .apply(variaveis).toUserMessage());
 
             ChatRequest chatRequest = ChatRequest.builder().messages(mensagens).build();
-            ChatResponse response = chatModel.chat(chatRequest);
+            ChatResponse response = LlmTaskContext.executando(
+                    TarefaIa.REVISAO_PARECER, () -> chatModel.chat(chatRequest));
             String sugestao = response.aiMessage().text();
 
             if (sugestao == null || sugestao.isBlank()) {
@@ -157,7 +162,7 @@ public class AnaliseMelhoriaService {
      * mesmo apos as rodadas, nenhuma tool foi de fato chamada -- nesse caso a chamada de
      * redacao segue sem a informacao de cadastro.
      */
-    private String consultarEnquadramentoViaTools(OpenAiChatModel chatModel, Ocorrencia ocorrencia, Long analiseId) {
+    private String consultarEnquadramentoViaTools(ChatModel chatModel, Ocorrencia ocorrencia, Long analiseId) {
         List<ChatMessage> mensagens = List.of(
                 SystemMessage.from("Voce verifica o enquadramento da pessoa monitorada de uma ocorrencia de PLDFT. "
                         + "Ha uma ferramenta para cada aspecto (PEP, PEM e funcionario da instituicao); use todas, "
@@ -167,8 +172,10 @@ public class AnaliseMelhoriaService {
                         + "da ocorrencia #" + ocorrencia.id() + ".")
         );
 
-        List<ToolExecutionResultMessage> resultados = toolCallingChatService.executarAteTodasAsTools(
-                chatModel, mensagens, enquadramentoTools, MAX_RODADAS_ENQUADRAMENTO);
+        List<ToolExecutionResultMessage> resultados = LlmTaskContext.executando(
+                TarefaIa.CONSULTA_ENQUADRAMENTO,
+                () -> toolCallingChatService.executarAteTodasAsTools(
+                        chatModel, mensagens, enquadramentoTools, MAX_RODADAS_ENQUADRAMENTO));
 
         if (resultados.isEmpty()) {
             log.warn("Analise {}: nenhuma tool de enquadramento foi chamada de verdade, seguindo sem a informacao", analiseId);

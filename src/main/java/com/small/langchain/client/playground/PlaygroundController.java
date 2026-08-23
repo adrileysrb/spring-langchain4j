@@ -1,6 +1,8 @@
 package com.small.langchain.client.playground;
 
-import com.small.langchain.client.llm.ChatModelFactory;
+import com.small.langchain.client.llm.model.ChatModelFactory;
+import com.small.langchain.client.llm.observability.LlmTaskContext;
+import com.small.langchain.client.llm.observability.TarefaIa;
 import com.small.langchain.client.playground.dto.ChatRequestDto;
 import com.small.langchain.client.playground.dto.ChatResponseDto;
 import dev.langchain4j.data.message.AiMessage;
@@ -37,7 +39,8 @@ public class PlaygroundController {
                 .messages(messages)
                 .build();
 
-        ChatResponse response = chatModelFactory.defaultChatModel().chat(chatRequest);
+        ChatResponse response = LlmTaskContext.executando(
+                TarefaIa.PLAYGROUND, () -> chatModelFactory.defaultModel().chat(chatRequest));
         return new ChatResponseDto(response.aiMessage().text());
     }
 }
