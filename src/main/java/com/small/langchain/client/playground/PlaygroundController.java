@@ -1,6 +1,6 @@
 package com.small.langchain.client.playground;
 
-import com.small.langchain.client.LlmClient;
+import com.small.langchain.client.llm.ChatModelFactory;
 import com.small.langchain.client.playground.dto.ChatRequestDto;
 import com.small.langchain.client.playground.dto.ChatResponseDto;
 import dev.langchain4j.data.message.AiMessage;
@@ -19,10 +19,10 @@ import java.util.List;
 @RequestMapping("/api/playground")
 public class PlaygroundController {
 
-    private final LlmClient llmClient;
+    private final ChatModelFactory chatModelFactory;
 
-    public PlaygroundController(LlmClient llmClient) {
-        this.llmClient = llmClient;
+    public PlaygroundController(ChatModelFactory chatModelFactory) {
+        this.chatModelFactory = chatModelFactory;
     }
 
     @PostMapping("/chat")
@@ -37,7 +37,7 @@ public class PlaygroundController {
                 .messages(messages)
                 .build();
 
-        ChatResponse response = llmClient.getInstance().chat(chatRequest);
+        ChatResponse response = chatModelFactory.defaultChatModel().chat(chatRequest);
         return new ChatResponseDto(response.aiMessage().text());
     }
 }

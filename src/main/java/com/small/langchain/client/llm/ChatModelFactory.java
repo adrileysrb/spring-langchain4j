@@ -1,4 +1,4 @@
-package com.small.langchain.client;
+package com.small.langchain.client.llm;
 
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import org.springframework.stereotype.Component;
@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 @Component
-public class LlmClient {
+public class ChatModelFactory {
 
     private static final String BASE_URL = "http://127.0.0.1:1234/v1";
     private static final String API_KEY = "lm-studio";
@@ -17,19 +17,19 @@ public class LlmClient {
     // API hospedada -- por isso o timeout generoso e poucos retries.
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
 
-    private OpenAiChatModel openAiChatModel = null;
+    private OpenAiChatModel defaultChatModel;
 
-    public OpenAiChatModel getInstance() {
-        if (openAiChatModel != null) return openAiChatModel;
-
-        openAiChatModel = OpenAiChatModel.builder()
-                .baseUrl(BASE_URL)
-                .apiKey(API_KEY)
-                .modelName(DEFAULT_MODEL_NAME)
-                .timeout(TIMEOUT)
-                .maxRetries(1)
-                .build();
-        return openAiChatModel;
+    public synchronized OpenAiChatModel defaultChatModel() {
+        if (defaultChatModel == null) {
+            defaultChatModel = OpenAiChatModel.builder()
+                    .baseUrl(BASE_URL)
+                    .apiKey(API_KEY)
+                    .modelName(DEFAULT_MODEL_NAME)
+                    .timeout(TIMEOUT)
+                    .maxRetries(1)
+                    .build();
+        }
+        return defaultChatModel;
     }
 
     public OpenAiChatModel build(String modelName, Double temperature, Integer maxTokens) {
