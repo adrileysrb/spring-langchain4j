@@ -11,9 +11,7 @@ import com.small.langchain.client.llm.model.StreamingChatModelFactory;
 import com.small.langchain.client.llm.observability.LlmTaskContext;
 import com.small.langchain.client.llm.observability.TarefaIa;
 import com.small.langchain.client.llm.stream.SseStreamingHandler;
-import com.small.langchain.client.llm.tool.ToolLoopPolicy;
-import com.small.langchain.client.llm.tool.ToolLoopResult;
-import com.small.langchain.client.llm.tool.ToolLoopRunner;
+import com.small.langchain.client.pldft.enquadramento.EnquadramentoStrategy;
 import com.small.langchain.client.pldft.guardrail.MencionaEnquadramentoGuardrail;
 import com.small.langchain.client.pldft.model.Analise;
 import com.small.langchain.client.pldft.model.AnaliseMelhoria;
@@ -25,10 +23,7 @@ import com.small.langchain.client.pldft.repository.AnaliseRepository;
 import com.small.langchain.client.pldft.repository.OcorrenciaRepository;
 import com.small.langchain.client.pldft.repository.ProdutoRepository;
 import com.small.langchain.client.pldft.repository.PromptTemplateRepository;
-import com.small.langchain.client.pldft.tool.OcorrenciaTools;
 import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -55,14 +50,6 @@ public class AnaliseMelhoriaService {
 
     private static final Set<String> STATUS_PERMITIDOS = Set.of("ACEITO", "DESCARTADO");
 
-    // Modelos locais pequenos as vezes "fingem" ter chamado uma tool escrevendo texto solto em vez
-    // de emitir um tool_call de verdade, principalmente quando o prompt e longo (ex.: pedindo pra
-    // reescrever o parecer inteiro AO MESMO TEMPO que decide usar as tools). Por isso a consulta de
-    // enquadramento roda numa chamada curta e isolada, so com essa unica tarefa -- uma rodada por
-    // tool (PEP, PEM, funcionario) -- e so depois o resultado (real, vindo do cadastro) e passado
-    // como texto pronto pra chamada de redacao, que ai nao precisa lidar com tool-calling nenhum.
-    private static final int MAX_RODADAS_ENQUADRAMENTO = 3;
-
     /** Um parecer revisado mais curto que isso quase sempre e resumo, nao reescrita. */
     private static final int TAMANHO_MINIMO_DO_PARECER = 250;
 
@@ -87,8 +74,12 @@ public class AnaliseMelhoriaService {
     private final AnaliseMelhoriaRepository melhoriaRepository;
     private final ChatModelFactory chatModelFactory;
     private final StreamingChatModelFactory streamingChatModelFactory;
-    private final ToolLoopRunner toolLoopRunner;
-    private final OcorrenciaTools ocorrenciaTools;
+
+    /**
+     * Qual implementacao chega aqui depende da flag {@code pldft.enquadramento-via-tools}; este
+     * servico nao sabe -- e nao precisa saber -- se o dado veio do banco ou de uma tool.
+     */
+    private final EnquadramentoStrategy enquadramentoStrategy;
 
     public AnaliseMelhoriaService(
             AnaliseRepository analiseRepository,
@@ -98,8 +89,7 @@ public class AnaliseMelhoriaService {
             AnaliseMelhoriaRepository melhoriaRepository,
             ChatModelFactory chatModelFactory,
             StreamingChatModelFactory streamingChatModelFactory,
-            ToolLoopRunner toolLoopRunner,
-            OcorrenciaTools ocorrenciaTools
+            EnquadramentoStrategy enquadramentoStrategy
     ) {
         this.analiseRepository = analiseRepository;
         this.ocorrenciaRepository = ocorrenciaRepository;
@@ -108,8 +98,7 @@ public class AnaliseMelhoriaService {
         this.melhoriaRepository = melhoriaRepository;
         this.chatModelFactory = chatModelFactory;
         this.streamingChatModelFactory = streamingChatModelFactory;
-        this.toolLoopRunner = toolLoopRunner;
-        this.ocorrenciaTools = ocorrenciaTools;
+        this.enquadramentoStrategy = enquadramentoStrategy;
     }
 
     /** Geracao bloqueante: valida tudo antes de qualquer coisa ser gravada ou exibida. */
@@ -217,7 +206,7 @@ public class AnaliseMelhoriaService {
     }
 
     private List<ChatMessage> montarMensagens(ContextoDaRevisao contexto, ChatModel chatModel) {
-        String enquadramento = consultarEnquadramentoViaTools(chatModel, contexto.ocorrencia(), contexto.analiseId());
+        String enquadramento = enquadramentoStrategy.consultar(contexto.ocorrencia(), chatModel);
 
         Map<String, Object> variaveis = new HashMap<>();
         variaveis.put("parecer", contexto.analise().parecer());
@@ -237,40 +226,6 @@ public class AnaliseMelhoriaService {
         mensagens.add(dev.langchain4j.model.input.PromptTemplate.from(template.promptUsuario())
                 .apply(variaveis).toUserMessage());
         return mensagens;
-    }
-
-    /**
-     * Chamada curta e isolada, so com a tarefa de consultar o enquadramento (PEP, PEM e
-     * funcionario, cada um numa tool propria) -- separada da chamada de redacao (bem mais
-     * longa) porque modelos locais pequenos costumam falhar em emitir tool_calls de verdade
-     * quando tem que decidir isso ao mesmo tempo que escreve um texto longo. Retorna null se,
-     * mesmo apos as rodadas, nenhuma tool foi de fato chamada -- nesse caso a chamada de
-     * redacao segue sem a informacao de cadastro.
-     */
-    private String consultarEnquadramentoViaTools(ChatModel chatModel, Ocorrencia ocorrencia, Long analiseId) {
-        List<ChatMessage> mensagens = List.of(
-                SystemMessage.from("Voce verifica o enquadramento da pessoa monitorada de uma ocorrencia de PLDFT. "
-                        + "Ha uma ferramenta para cada aspecto (PEP, PEM e funcionario da instituicao); use todas, "
-                        + "informando o id da ocorrencia, ate ter consultado os tres. Nao escreva nenhum texto de "
-                        + "resposta, apenas use as ferramentas."),
-                UserMessage.from("Consulte o enquadramento completo (PEP, PEM e funcionario) da pessoa monitorada "
-                        + "da ocorrencia #" + ocorrencia.id() + ".")
-        );
-
-        ToolLoopResult resultado = LlmTaskContext.executando(
-                TarefaIa.CONSULTA_ENQUADRAMENTO,
-                () -> toolLoopRunner.executar(
-                        chatModel,
-                        mensagens,
-                        ocorrenciaTools.enquadramento(),
-                        ToolLoopPolicy.ateChamarTodasAsTools(),
-                        MAX_RODADAS_ENQUADRAMENTO));
-
-        if (!resultado.algumaToolExecutada()) {
-            log.warn("Analise {}: nenhuma tool de enquadramento foi chamada de verdade, seguindo sem a informacao", analiseId);
-            return null;
-        }
-        return resultado.resultadosConcatenados(" | ");
     }
 
     private AnaliseMelhoria concluir(ContextoDaRevisao contexto, String sugestao, LocalDateTime inicio) {
