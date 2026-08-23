@@ -1,5 +1,10 @@
 package com.small.langchain.client.pldft.service;
 
+import com.small.langchain.client.llm.guardrail.GuardrailChain;
+import com.small.langchain.client.llm.guardrail.rules.NaoVazioGuardrail;
+import com.small.langchain.client.llm.guardrail.rules.SemMarkdownGuardrail;
+import com.small.langchain.client.llm.guardrail.rules.SemRecusaGuardrail;
+import com.small.langchain.client.llm.guardrail.rules.TamanhoMinimoGuardrail;
 import com.small.langchain.client.llm.model.ChatModelFactory;
 import com.small.langchain.client.llm.model.ModelSpec;
 import com.small.langchain.client.llm.observability.LlmTaskContext;
@@ -15,6 +20,7 @@ import com.small.langchain.client.pldft.repository.AnaliseMelhoriaRepository;
 import com.small.langchain.client.pldft.repository.AnaliseRepository;
 import com.small.langchain.client.pldft.repository.OcorrenciaRepository;
 import com.small.langchain.client.pldft.repository.ProdutoRepository;
+import com.small.langchain.client.pldft.guardrail.MencionaEnquadramentoGuardrail;
 import com.small.langchain.client.pldft.repository.PromptTemplateRepository;
 import com.small.langchain.client.pldft.tool.OcorrenciaTools;
 import dev.langchain4j.data.message.ChatMessage;
@@ -49,6 +55,20 @@ public class AnaliseMelhoriaService {
     // tool (PEP, PEM, funcionario) -- e so depois o resultado (real, vindo do cadastro) e passado
     // como texto pronto pra chamada de redacao, que ai nao precisa lidar com tool-calling nenhum.
     private static final int MAX_RODADAS_ENQUADRAMENTO = 3;
+
+    /** Um parecer revisado mais curto que isso quase sempre e resumo, nao reescrita. */
+    private static final int TAMANHO_MINIMO_DO_PARECER = 250;
+
+    /**
+     * Cadeia aplicada a saida da reescrita: as tres primeiras regras sao genericas, a ultima e
+     * de dominio -- e justamente a que pega o erro mais caro deste fluxo.
+     */
+    private static final GuardrailChain GUARDRAILS = GuardrailChain.de(
+            new NaoVazioGuardrail(),
+            new SemRecusaGuardrail(),
+            new TamanhoMinimoGuardrail(TAMANHO_MINIMO_DO_PARECER),
+            new MencionaEnquadramentoGuardrail(),
+            new SemMarkdownGuardrail());
 
     private final AnaliseRepository analiseRepository;
     private final OcorrenciaRepository ocorrenciaRepository;
@@ -127,10 +147,9 @@ public class AnaliseMelhoriaService {
                     TarefaIa.REVISAO_PARECER, () -> chatModel.chat(chatRequest));
             String sugestao = response.aiMessage().text();
 
-            if (sugestao == null || sugestao.isBlank()) {
-                throw new IllegalStateException(
-                        "O modelo não retornou texto (resposta vazia, possivelmente truncada por max_tokens)");
-            }
+            // A cadeia substitui a checagem solta de "texto vazio": qualquer reprovacao bloqueante
+            // cai no catch abaixo e e gravada como ERRO, com o motivo exato da recusa.
+            GUARDRAILS.exigir(sugestao);
 
             return melhoriaRepository.save(new AnaliseMelhoria(
                     null, analiseId, template.id(), analise.parecer(), sugestao,
